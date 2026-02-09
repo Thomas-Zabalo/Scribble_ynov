@@ -3,10 +3,11 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require("cors");
 
-const {createRoom,leaveRoom} = require('./socket/room');
+const { createRoom, leaveRoom } = require('./socket/room');
 const canva = require('./socket/canva');
 const { addUser, removeUser, getUsersInRoom } = require('./socket/user');
 const messagePlayer = require('./socket/chat');
+
 const path = require('path');
 const fs = require('fs');
 const app = express();
@@ -25,7 +26,8 @@ let gameState = {
     roundEndTime: null
 };
 
-const WORDS = JSON.parse(fs.readFileSync(path.join(__dirname, '../data/data.json'), 'utf-8'));
+const dataFilePath = path.join(__dirname, '../data/data.json');
+const WORDS = JSON.parse(fs.readFileSync(dataFilePath, 'utf-8'));
 
 app.use(cors({
     origin: (origin, callback) => {
