@@ -1,10 +1,29 @@
 const express = require("express");
+const http = require('http');
+const { Server } = require('socket.io');
 const cors = require("cors");
+
+const canva = require('./socket/canva');
 const app = express();
 
 const allowedOrigins = [
     "*",
 ];
+
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
+});
+
+let gameState = {
+    isGameRunning: false,
+    drawerSocketId: null,
+    currentWord: null,
+    roundEndTime: null
+};
 
 app.use(cors({
     origin: (origin, callback) => {
@@ -20,8 +39,20 @@ app.use(cors({
 }));
 app.use(express.json());
 
-app.get("/", (req, res) => {
-res.json({ status: "ok" });
+io.on('connection', (socket) => {
+    console.log('User connected:', socket.id);
+
+    socket.on('draw', (data) => {
+        canva.onDraw(socket, io, gameState);
+    });
+
+    socket.on('clear_canvas', () => {
+        canva.onClear(socket, io, gameState);
+    });
 });
 
-module.exports = app;
+app.get("/", (req, res) => {
+    res.json({ status: "ok" });
+});
+
+module.exports = { app, server, gameState };
