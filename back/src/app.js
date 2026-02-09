@@ -2,138 +2,165 @@ const express = require("express");
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require("cors");
-
-const { createRoom, leaveRoom } = require('./socket/room');
-const canva = require('./socket/canva');
-const { addUser, removeUser, getUsersInRoom } = require('./socket/user');
-const messagePlayer = require('./socket/chat');
-
 const path = require('path');
 const fs = require('fs');
+
+const { users, addUser, removeUser, getUser } = require('./socket/user');
+
 const app = express();
-
-const allowedOrigins = [
-    "*",
-];
-
 const server = http.createServer(app);
-const io = new Server(server);
+
+// Configuration CORS pour Socket.io
+const io = new Server(server, {
+    cors: {
+        origin: "http://localhost:5173",
+        methods: ["GET", "POST"]
+    }
+});
 
 let gameState = {
-    isGameRunning: false,
-    drawerSocketId: null,
+    status: 'waiting', // 'waiting', 'playing', 'finished'
+    drawerId: null,
     currentWord: null,
-    roundEndTime: null
 };
 
 const dataFilePath = path.join(__dirname, '../data/data.json');
-const WORDS = JSON.parse(fs.readFileSync(dataFilePath, 'utf-8'));
+const data = JSON.parse(fs.readFileSync(dataFilePath, 'utf-8'));
+const WORDS = data.words;
 
-app.use(cors({
-    origin: (origin, callback) => {
-        if (!origin || allowedOrigins.includes(origin)) {
-            callback(null, true);
-        } else {
-            callback(new Error("CORS policy: origin not allowed"));
-        }
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"]
-}));
+app.use(cors());
 app.use(express.json());
 
+function broadcastUserList() {
+    const playerList = Array.from(users.values()).map(u => ({
+        name: u.username,
+        score: u.score || 0
+    }));
+    io.emit('update_players', playerList);
+}
 
 function startNewRound() {
-    const loggedSockets = Array.from(users.entries())
-        .filter(([id, u]) => u.isLogged)
-        .map(([id, u]) => id);
+    const activePlayers = Array.from(users.values()).filter(u => !u.isGuest);
 
-    if (loggedSockets.length < 1) {
-        gameState.isGameRunning = false;
-        gameState.drawerSocketId = null;
+    if (activePlayers.length < 2) {
+        gameState.status = 'waiting';
+        gameState.drawerId = null;
         gameState.currentWord = null;
-        io.emit('game_status', { status: 'En attente', message: 'En attente de joueurs...' });
+        io.emit('game_state', gameState);
+        io.emit('chat_message', { user: 'Système', text: 'En attente de plus de joueurs...', isSystem: true });
         return;
     }
 
-    const randomDrawerIndex = Math.floor(Math.random() * loggedSockets.length);
-    gameState.drawerSocketId = loggedSockets[randomDrawerIndex];
-
+    const randomDrawer = activePlayers[Math.floor(Math.random() * activePlayers.length)];
+    gameState.drawerId = randomDrawer.socketId;
     gameState.currentWord = WORDS[Math.floor(Math.random() * WORDS.length)];
-    gameState.isGameRunning = true;
+    gameState.status = 'playing';
 
-    const drawerUser = users.get(gameState.drawerSocketId);
-
+    // Nettoyer le canvas pour tout le monde au début de la manche
     io.emit('clear_canvas');
-    io.emit('round_start', {
-        drawer: drawerUser.username,
-        drawerId: gameState.drawerSocketId
+
+    // Notifier tout le monde du début de la manche
+    io.emit('round_start', { drawerId: gameState.drawerId });
+    
+    // Envoyer le mot seulement au dessinateur
+    io.to(gameState.drawerId).emit('round_start', { 
+        word: gameState.currentWord, 
+        drawerId: gameState.drawerId 
     });
 
-    io.to(gameState.drawerSocketId).emit('your_turn', { word: gameState.currentWord });
-
-    io.emit('game_message', { type: 'info', text: `Nouveau round! ${drawerUser.username} dessine.` });
-
-    console.log(`Le round commande. Dessinateur: ${drawerUser.username}, Mot: ${gameState.currentWord}`);
+    io.emit('chat_message', { 
+        user: 'Système', 
+        text: `Une nouvelle manche commence ! ${randomDrawer.username} dessine.`, 
+        isSystem: true 
+    });
+    
+    broadcastUserList();
 }
 
-
 io.on('connection', (socket) => {
-    console.log('User connected:', socket.id);
+    const { username, isGuest } = socket.handshake.auth;
+    
+    console.log(`User connected: ${username} (${socket.id}) - Guest: ${isGuest}`);
 
-    if (!gameState.isGameRunning) {
-        startNewRound();
-    }
-
-    socket.on('join_room', (roomId) => {
-        createRoom(io, socket, roomId);
-        addUser(socket.id, {
-            socketId: socket.id,
-            username,
-            roomId,
-            score: 0
-        });
-        io.to(roomId).emit("players_update", getUsersInRoom(roomId));
+    addUser(socket.id, {
+        socketId: socket.id,
+        username: username || `Guest_${socket.id.substring(0,4)}`,
+        isGuest: !!isGuest,
+        score: 0
     });
 
-    socket.on('leave_room', (roomId) => {
-        leaveRoom(io, socket, roomId);
-        removeUser(socket.id);
+    broadcastUserList();
+    socket.emit('game_state', gameState);
+
+    socket.on('chat_message', (data) => {
+        const user = getUser(socket.id);
+        if (!user) return;
+
+        const text = data.text.trim();
+        if (!text) return;
+
+        // Vérification du mot si le jeu est en cours et que ce n'est pas le dessinateur
+        if (gameState.status === 'playing' && 
+            socket.id !== gameState.drawerId && 
+            gameState.currentWord &&
+            text.toLowerCase() === gameState.currentWord.toLowerCase()) {
+            
+            user.score += 10;
+            const drawer = getUser(gameState.drawerId);
+            if (drawer) drawer.score += 5;
+
+            io.emit('chat_message', { 
+                user: 'Système', 
+                text: `${user.username} a trouvé le mot : ${gameState.currentWord} !`, 
+                isSystem: true 
+            });
+            
+            gameState.status = 'finished';
+            io.emit('round_end');
+            broadcastUserList();
+
+            setTimeout(() => {
+                startNewRound();
+            }, 5000);
+        } else {
+            // Message normal
+            io.emit('chat_message', { user: user.username, text: text });
+        }
     });
 
     socket.on('draw', (data) => {
-        canva.onDraw(socket, io, gameState);
+        if (gameState.status === 'playing' && socket.id === gameState.drawerId) {
+            socket.broadcast.emit('draw', data);
+        }
     });
 
     socket.on('clear_canvas', () => {
-        canva.onClear(socket, io, gameState);
+        if (gameState.status === 'playing' && socket.id === gameState.drawerId) {
+            io.emit('clear_canvas');
+        }
     });
 
-    socket.on('public_message', (msg) => {
-        messagePlayer.createMessage(msg);
-    })
-
-    if (gameState.isGameRunning &&
-        socket.id !== gameState.drawerSocketId &&
-        gameState.currentWord &&
-        text.toUpperCase() === gameState.currentWord.toUpperCase()) {
-
-        user.score += 10;
-        const drawer = users.get(gameState.drawerSocketId);
-        if (drawer) drawer.score += 5;
-
-        io.emit('game_message', { type: 'success', text: `${user.username} à trouvé le mot: ${gameState.currentWord}!` });
-        broadcastUserList();
-
-        gameState.isGameRunning = false;
-        gameState.currentWord = null;
-        gameState.drawerSocketId = null;
-
-        setTimeout(() => {
+    socket.on('start_round', () => {
+        const user = getUser(socket.id);
+        if (user && !user.isGuest && gameState.status !== 'playing') {
             startNewRound();
-        }, 3000);
-    }
+        }
+    });
+
+    socket.on('disconnect', () => {
+        console.log('User disconnected:', socket.id);
+        removeUser(socket.id);
+        
+        if (socket.id === gameState.drawerId) {
+            io.emit('chat_message', { user: 'Système', text: 'Le dessinateur est parti, manche annulée.', isSystem: true });
+            gameState.status = 'waiting';
+            gameState.drawerId = null;
+            gameState.currentWord = null;
+            io.emit('game_state', gameState);
+        }
+        
+        broadcastUserList();
+    });
 });
 
 app.get("/", (req, res) => {

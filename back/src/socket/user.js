@@ -17,6 +17,7 @@ function getUsersInRoom(roomId) {
 }
 
 module.exports = {
+    users,
     addUser,
     removeUser,
     getUser,
