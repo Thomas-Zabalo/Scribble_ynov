@@ -37,7 +37,7 @@ const MainPage: React.FC = () => {
       setGameStatus('playing');
       setIsDrawer(socket.id === data.drawerId);
       if (socket.id === data.drawerId) {
-        setTargetWord(data.word || null);
+        setTargetWord(data.word?.toUpperCase() || null);
       } else {
         setTargetWord(null); // Les autres ne voient pas le mot
       }

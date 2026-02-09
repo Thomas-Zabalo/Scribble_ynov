@@ -26,10 +26,25 @@ let gameState = {
 
 const dataFilePath = path.join(__dirname, '../data/data.json');
 const data = JSON.parse(fs.readFileSync(dataFilePath, 'utf-8'));
-const WORDS = data.words;
+
+const WORDS = data.words
+    .map(sanitizeWord)
+    .filter(word => word && word.length > 1);
 
 app.use(cors());
 app.use(express.json());
+
+function sanitizeWord(word) {
+    if (!word || typeof word !== "string") return null;
+
+    return word
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")                  // sépare accents
+        .replace(/[\u0300-\u036f]/g, "")   // supprime accents
+        .replace(/[^a-z' ]/g, "");         // garde lettres, espaces et apostrophes
+}
+
 
 function broadcastUserList() {
     const playerList = Array.from(users.values()).map(u => ({
