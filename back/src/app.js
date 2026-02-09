@@ -6,6 +6,7 @@ const cors = require("cors");
 const {createRoom,leaveRoom} = require('./socket/room');
 const canva = require('./socket/canva');
 const { addUser, removeUser, getUsersInRoom } = require('./socket/user');
+const messagePlayer = require('./socket/chat');
 const path = require('path');
 const fs = require('fs');
 const app = express();
@@ -106,6 +107,31 @@ io.on('connection', (socket) => {
     socket.on('clear_canvas', () => {
         canva.onClear(socket, io, gameState);
     });
+
+    socket.on('public_message', (msg) => {
+        messagePlayer.createMessage(msg);
+    })
+
+    if (gameState.isGameRunning &&
+        socket.id !== gameState.drawerSocketId &&
+        gameState.currentWord &&
+        text.toUpperCase() === gameState.currentWord.toUpperCase()) {
+
+        user.score += 10;
+        const drawer = users.get(gameState.drawerSocketId);
+        if (drawer) drawer.score += 5;
+
+        io.emit('game_message', { type: 'success', text: `${user.username} à trouvé le mot: ${gameState.currentWord}!` });
+        broadcastUserList();
+
+        gameState.isGameRunning = false;
+        gameState.currentWord = null;
+        gameState.drawerSocketId = null;
+
+        setTimeout(() => {
+            startNewRound();
+        }, 3000);
+    }
 });
 
 app.get("/", (req, res) => {
