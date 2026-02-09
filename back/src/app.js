@@ -82,7 +82,6 @@ io.on('connection', (socket) => {
         startNewRound();
     }
 
-    socket.on('draw', () => {
     socket.on('join_room', (roomId) => {
         room.createRoom(io, socket, roomId);
     });
