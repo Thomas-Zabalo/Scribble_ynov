@@ -1,13 +1,10 @@
-import express from "express";
-import cors from "cors";
-
-
+const express = require("express");
+const cors = require("cors");
 const app = express();
-connectDB();
 
 const allowedOrigins = [
-    process.env.FRONTEND_URL,
-].filter(Boolean);
+    "*",
+];
 
 app.use(cors({
     origin: (origin, callback) => {
@@ -23,8 +20,8 @@ app.use(cors({
 }));
 app.use(express.json());
 
-app.get("/api/ping", (req, res) => {
+app.get("/", (req, res) => {
 res.json({ status: "ok" });
 });
 
-export default app;
+module.exports = app;
