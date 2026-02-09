@@ -3,6 +3,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require("cors");
 
+const room = require('./socket/room');
 const canva = require('./socket/canva');
 const app = express();
 
@@ -11,12 +12,7 @@ const allowedOrigins = [
 ];
 
 const server = http.createServer(app);
-const io = new Server(server, {
-    cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
-    }
-});
+const io = new Server(server);
 
 let gameState = {
     isGameRunning: false,
@@ -41,6 +37,14 @@ app.use(express.json());
 
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
+
+    socket.on('join_room', (roomId) => {
+        room.createRoom(io, socket, roomId);
+    });
+
+    socket.on('leave_room', (roomId) => {
+        room.leaveRoom(io, socket, roomId);
+    });
 
     socket.on('draw', (data) => {
         canva.onDraw(socket, io, gameState);
