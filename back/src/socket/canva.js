@@ -11,4 +11,4 @@ function onClear(socket, io, gameState) {
 };
 
 
-module.exports = { onDraw };
+module.exports = { onDraw, onClear };
