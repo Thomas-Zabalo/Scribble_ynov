@@ -3,8 +3,9 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require("cors");
 
-const room = require('./socket/room');
+const {createRoom,leaveRoom} = require('./socket/room');
 const canva = require('./socket/canva');
+const { addUser, removeUser, getUsersInRoom } = require('./socket/user');
 const path = require('path');
 const fs = require('fs');
 const app = express();
@@ -83,11 +84,19 @@ io.on('connection', (socket) => {
     }
 
     socket.on('join_room', (roomId) => {
-        room.createRoom(io, socket, roomId);
+        createRoom(io, socket, roomId);
+        addUser(socket.id, {
+            socketId: socket.id,
+            username,
+            roomId,
+            score: 0
+        });
+        io.to(roomId).emit("players_update", getUsersInRoom(roomId));
     });
 
     socket.on('leave_room', (roomId) => {
-        room.leaveRoom(io, socket, roomId);
+        leaveRoom(io, socket, roomId);
+        removeUser(socket.id);
     });
 
     socket.on('draw', (data) => {
