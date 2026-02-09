@@ -7,16 +7,13 @@ const LoginPage: React.FC = () => {
 
   const handleLogin = () => {
     if (username.trim()) {
-      // Logic for logging in with username
-      console.log('Logging in as:', username);
-      navigate('/game'); // Assuming chat is the next page, or game as before
+      navigate('/game', { state: { username, isGuest: false } });
     }
   };
 
   const handleGuestLogin = () => {
-    // Logic for guest login
-    console.log('Logging in as guest');
-    navigate('/game');
+    const guestName = `Guest_${Math.floor(Math.random() * 1000)}`;
+    navigate('/game', { state: { username: guestName, isGuest: true } });
   };
 
   const containerStyle: React.CSSProperties = {
@@ -24,15 +21,17 @@ const LoginPage: React.FC = () => {
     justifyContent: 'center',
     alignItems: 'center',
     height: '100vh',
-    background: 'linear-gradient(135deg, #e0eaFC 0%, #cfdef3 100%)',
+    backgroundColor: '#000000',
+    color: '#ffffff',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
   };
 
   const boxStyle: React.CSSProperties = {
-    backgroundColor: 'white',
+    backgroundColor: '#1a1a1a',
     padding: '40px',
     borderRadius: '16px',
-    boxShadow: '0 10px 25px rgba(0, 0, 0, 0.05)',
+    border: '1px solid #333',
+    boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)',
     textAlign: 'center',
     width: '100%',
     maxWidth: '380px',
@@ -43,12 +42,12 @@ const LoginPage: React.FC = () => {
     padding: '14px',
     marginBottom: '20px',
     borderRadius: '8px',
-    border: '1px solid #e1e4e8',
-    backgroundColor: '#f8f9fa',
+    border: '1px solid #444',
+    backgroundColor: '#000',
+    color: 'white',
     fontSize: '16px',
     boxSizing: 'border-box',
     outline: 'none',
-    transition: 'border-color 0.2s',
   };
 
   const buttonStyle: React.CSSProperties = {
@@ -57,25 +56,24 @@ const LoginPage: React.FC = () => {
     marginBottom: '12px',
     borderRadius: '8px',
     border: 'none',
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#2196F3',
     color: 'white',
     cursor: 'pointer',
     fontSize: '16px',
     fontWeight: '600',
-    transition: 'background-color 0.2s',
   };
 
   const secondaryButtonStyle: React.CSSProperties = {
     ...buttonStyle,
-    backgroundColor: 'white',
-    color: '#3b82f6',
-    border: '2px solid #3b82f6',
+    backgroundColor: '#333',
+    color: 'white',
+    border: '1px solid #444',
   };
 
   return (
     <div id="login-container" style={containerStyle}>
       <div className="login-box" style={boxStyle}>
-        <h2>Bienvenue sur WebSocket Chat</h2>
+        <h2 style={{ marginBottom: '30px' }}>Scribble Ynov</h2>
         <input
           type="text"
           id="username-input"
