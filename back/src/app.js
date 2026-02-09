@@ -3,6 +3,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require("cors");
 
+const room = require('./socket/room');
 const canva = require('./socket/canva');
 const path = require('path');
 const fs = require('fs');
@@ -82,6 +83,15 @@ io.on('connection', (socket) => {
     }
 
     socket.on('draw', () => {
+    socket.on('join_room', (roomId) => {
+        room.createRoom(io, socket, roomId);
+    });
+
+    socket.on('leave_room', (roomId) => {
+        room.leaveRoom(io, socket, roomId);
+    });
+
+    socket.on('draw', (data) => {
         canva.onDraw(socket, io, gameState);
     });
 
